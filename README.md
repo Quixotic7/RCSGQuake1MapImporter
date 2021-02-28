@@ -15,6 +15,12 @@ Assuming the material's textures have same dimensions as in Trenchbroom, the tex
 
 Complex brushes with many sides may have troubles being used with RealtimeCSG. These brushes will be skipped. If you notice some missing brushes, try clipping them in to smaller brushes so they have less sides and reimport. 
 
+## Requirements
+
+You will need RealtimeCSG to use this addon. You can grab the latest version here. https://github.com/LogicalError/realtime-CSG-for-unity/
+
+I used Unity 2019.4.19f1 but this should work fine in older versions of Unity and any version of 2019, can't confirm it will work with Unity 2020 and greater. 
+
 ## How to import textures
 
 Export your textures from your wads using TexMex. Import them to a folder in Unity. 

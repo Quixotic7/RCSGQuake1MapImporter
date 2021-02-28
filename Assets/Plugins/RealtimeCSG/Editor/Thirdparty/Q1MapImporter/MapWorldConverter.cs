@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Collections.Generic;
 using UnityEngine;
 using RealtimeCSG.Legacy;
 using RealtimeCSG.Components;
@@ -13,6 +14,73 @@ namespace RealtimeCSG.Quake1Importer
     public static class MapWorldConverter
     {
         private static int s_Scale = 32;
+
+        private static Transform CreateGameObjectWithUniqueName(string name, Transform parent)
+        {
+            var go = new GameObject(UnityEditor.GameObjectUtility.GetUniqueNameForSibling(parent, name));
+            go.transform.SetParent(parent);
+            return go.transform;
+        }
+
+        private class EntityContainer
+        {
+            public Transform transform;
+            public MapEntity entity;
+
+            public EntityContainer(Transform t, MapEntity e)
+            {
+                transform = t;
+                entity = e;
+            }
+        }
+
+        // Trenchbroom texture matrix math
+
+        //    void ParallelTexCoordSystem::applyRotation(const vm::vec3& normal, const FloatType angle) {
+        //        const vm::quat3 rot(normal, angle);
+        //    m_xAxis = rot* m_xAxis;
+        //    m_yAxis = rot* m_yAxis;
+        //}
+
+        /*
+         * vm::mat4x4 TexCoordSystem::toMatrix(const vm::vec2f& o, const vm::vec2f& s) const {
+            const vm::vec3 x = safeScaleAxis(getXAxis(), s.x());
+            const vm::vec3 y = safeScaleAxis(getYAxis(), s.y());
+            const vm::vec3 z = getZAxis();
+
+            return vm::mat4x4(x[0], x[1], x[2], o[0],
+                          y[0], y[1], y[2], o[1],
+                          z[0], z[1], z[2],  0.0,
+                           0.0,  0.0,  0.0,  1.0);
+        }
+         */
+
+        private static float SafeDivision(float numerator, float denominator)
+        {
+            return (Mathf.Approximately(denominator, 0)) ? 0 : numerator / denominator;
+        }
+
+        private static Vector3 SafeDivision(Vector3 numerator, float denominator)
+        {
+            return (Mathf.Approximately(denominator, 0)) ? Vector3.zero : numerator / denominator;
+        }
+
+        public static Matrix4x4 GetTextMatrix(Vector3 tX, Vector3 tY, Vector2 offset, Vector2 scale)
+        {
+            //var x = SafeDivision(tX, scale.x);
+            //var y = SafeDivision(tY, scale.y);
+
+            var x = tX * scale.x;
+            var y = tY * scale.y;
+            var z = Vector3.Cross(tX, tY);
+
+            return new Matrix4x4(
+                new Vector4(x.x, x.y, x.z, offset.x),
+                new Vector4(y.x, y.y, y.z, offset.y),
+                new Vector4(z.x, z.y, z.z, 0.0f),
+                new Vector4(0.0f, 0.0f, 0.0f, 1.0f)
+            );
+        }
 
         /// <summary>
         /// Imports the specified world into the SabreCSG model.
@@ -31,15 +99,49 @@ namespace RealtimeCSG.Quake1Importer
             //GroupBrush groupBrush = new GameObject("Quake 1 Map").AddComponent<GroupBrush>();
             //groupBrush.transform.SetParent(model.transform);
 
+            var mapTransform = CreateGameObjectWithUniqueName(world.mapName, rootTransform);
+            mapTransform.position = Vector3.zero;
 
-            var model = OperationsUtility.CreateModelInstanceInScene(rootTransform);
+            // Index of entities by trenchbroom id
+            var entitiesById = new Dictionary<int, EntityContainer>();
 
-            var parent = model.transform;
+            var layers = new List<EntityContainer>();
+
+            for (int e = 0; e < world.Entities.Count; e++)
+            {
+                var entity = world.Entities[e];
+
+                //EntityContainer eContainer = null;
+
+                if(entity.tbId >= 0)
+                {
+                    var name = String.IsNullOrEmpty(entity.tbName) ? "Unnamed" : entity.tbName;
+                    var t = CreateGameObjectWithUniqueName(name, mapTransform);
+                    var eContainer = new EntityContainer(t, entity);
+                    entitiesById.Add(entity.tbId, eContainer);
+
+                    if(entity.tbType == "_tb_layer")
+                    {
+                        layers.Add(eContainer);
+                        eContainer.transform.SetParent(null); // unparent until layers are sorted by sort index
+                    }
+                }
+            }
+
+            var defaultLayer = CreateGameObjectWithUniqueName("Default Layer", mapTransform);
+
+            //var worldSpawnModel = OperationsUtility.CreateModelInstanceInScene(defaultLayer);
+            //worldSpawnModel.name = "WorldSpawn";
+            //worldSpawnModel.transform.SetParent(mapTransform);
+
+            layers = layers.OrderBy(l => l.entity.tbLayerSortIndex).ToList(); // sort layers by layer sort index
+
+            foreach(var l in layers)
+            {
+                l.transform.SetParent(mapTransform); // parent layers to map in order
+            }
 
             bool valveFormat = world.valveFormat;
-
-
-
 
             // iterate through all entities.
             for (int e = 0; e < world.Entities.Count; e++)
@@ -48,6 +150,74 @@ namespace RealtimeCSG.Quake1Importer
                 UnityEditor.EditorUtility.DisplayProgressBar("Importing Quake 1 Map", "Converting Quake 1 Entities To Brushes (" + (e + 1) + " / " + world.Entities.Count + ")...", e / (float)world.Entities.Count);
 #endif
                 MapEntity entity = world.Entities[e];
+
+                Transform brushParent = mapTransform;
+
+                bool isLayer = false;
+                bool isTrigger = false;
+
+                if(entity.ClassName == "worldspawn")
+                {
+                    brushParent = defaultLayer;
+                }
+                else if (entity.tbType == "_tb_layer")
+                {
+                    isLayer = true;
+                    if (entitiesById.TryGetValue(entity.tbId, out EntityContainer eContainer))
+                    {
+                        brushParent = eContainer.transform;
+                    }
+                }
+                else if(entity.tbType == "_tb_group")
+                {
+                    if (entitiesById.TryGetValue(entity.tbId, out EntityContainer eContainer))
+                    {
+                        brushParent = eContainer.transform;
+                    }
+                }
+                else
+                {
+                    if (entity.ClassName.Contains("trigger")) isTrigger = true;
+
+                    brushParent = CreateGameObjectWithUniqueName(entity.ClassName, mapTransform);
+                }
+
+                if (brushParent != mapTransform && brushParent != defaultLayer)
+                {
+                    if (entity.tbGroup > 0)
+                    {
+                        if (entitiesById.TryGetValue(entity.tbGroup, out EntityContainer eContainer))
+                        {
+                            brushParent.SetParent(eContainer.transform);
+                        }
+                    }
+                    else if (entity.tbLayer > 0)
+                    {
+                        if (entitiesById.TryGetValue(entity.tbLayer, out EntityContainer eContainer))
+                        {
+                            brushParent.SetParent(eContainer.transform);
+                        }
+                    }
+                    else if(!isLayer)
+                    {
+                        brushParent.SetParent(defaultLayer);
+                    }
+                }
+
+                   
+
+                //if(entity.)
+
+                if (entity.Brushes.Count == 0) continue;
+
+
+                var model = OperationsUtility.CreateModelInstanceInScene(brushParent);
+                var parent = model.transform;
+
+                if (isTrigger)
+                {
+                    model.Settings = (model.Settings | ModelSettingsFlags.IsTrigger | ModelSettingsFlags.SetColliderConvex | ModelSettingsFlags.DoNotRender);
+                }
 
                 //GroupBrush entityGroup = new GameObject(entity.ClassName).AddComponent<GroupBrush>();
                 //entityGroup.transform.SetParent(groupBrush.transform);
@@ -62,8 +232,9 @@ namespace RealtimeCSG.Quake1Importer
                         UnityEditor.EditorUtility.DisplayProgressBar("SabreCSG: Importing Quake 1 Map", "Converting Quake 1 Brushes To SabreCSG Brushes (" + (i + 1) + " / " + entity.Brushes.Count + ")...", i / (float)entity.Brushes.Count);
 #endif
                     // don't add triggers to the scene.
-                    if (brush.Sides.Count > 0 && IsSpecialMaterial(brush.Sides[0].Material))
-                        continue;
+                    // Triggers will get placed in entity model now
+                    //if (brush.Sides.Count > 0 && IsSpecialMaterial(brush.Sides[0].Material))
+                    //    continue;
 
 
                     var name = UnityEditor.GameObjectUtility.GetUniqueNameForSibling(parent, "Brush");
@@ -82,7 +253,7 @@ namespace RealtimeCSG.Quake1Importer
 
                     Debug.Log($"Brush sides {brush.Sides.Count}");
 
-                    // clip all the sides out of the brush.
+                    // Get planes for all sides of the brush
                     for (int j = 0; j < brush.Sides.Count; j++)
                     {
                         MapBrushSide side = brush.Sides[j];
@@ -93,14 +264,9 @@ namespace RealtimeCSG.Quake1Importer
 
                         planes[j] = new Plane(pa, pb, pc);
 
-                        
-
-
-
                         //var tScale = tRight.normalized * side.Scale.X + tForward.normalized + tUp.normalized * side.Scale.Y;
 
                         //var tScale = Vector3.one;
-
 
                         if (IsExcludedMaterial(side.Material))
                         {
@@ -128,14 +294,23 @@ namespace RealtimeCSG.Quake1Importer
                             //var tRight = new Vector3(side.t1.X, side.t1.Z, side.t1.Y);
                             //var tUp = new Vector3(side.t2.X, side.t2.Z, side.t2.Y);
 
-                            var tRight = new Vector3(side.t1.X, side.t1.Z, side.t1.Y);
-                            var tUp = new Vector3(side.t2.X, side.t2.Z, side.t2.Y);
+                            //var tRight = new Vector3(side.t1.X, side.t1.Z, side.t1.Y);
+                            //var tUp = new Vector3(side.t2.X, side.t2.Z, side.t2.Y);
+
+
+                            //var tRight = new Vector3(side.t1.X, side.t1.Y, side.t1.Z);
+                            //var tUp = new Vector3(side.t2.X, side.t2.Y, side.t2.Z);
+
+                            // Z, Y, X and X, Y, Z produce similar planes, though texture often needs to be rotated 180. 
+                            var tRight = new Vector3(side.t1.X, side.t1.Y, side.t1.Z);
+                            var tUp = new Vector3(side.t2.X, side.t2.Y, side.t2.Z);
+                            textureMatrices[j] = GetTextMatrix(tRight, tUp, Vector2.zero, Vector2.one);
+
+                            /*
 
                             //tUp *= -1;
                             var tForward = Vector3.Cross(-tUp, tRight);
-
                             //var tRot = Quaternion.LookRotation(-tForward, tUp) * Quaternion.AngleAxis(180, planes[j].normal);
-
                             var tRot = Quaternion.LookRotation(tForward, -tUp);
 
 
@@ -160,7 +335,14 @@ namespace RealtimeCSG.Quake1Importer
 
                             var tOffset = tRight.normalized * side.Offset.X * resize.x + tUp.normalized * side.Offset.Y * resize.y;
 
-                            textureMatrices[j] = Matrix4x4.TRS(tOffset, tRot, Vector3.one);
+                            //textureMatrices[j] = Matrix4x4.TRS(tOffset, tRot, Vector3.one);
+
+                            //textureMatrices[j] = GetTextMatrix(tRight, tUp, new Vector2(side.Offset.X, side.Offset.Y), new Vector2(side.Scale.X, side.Scale.Y));
+
+                            //textureMatrices[j] = GetTextMatrix(tRight, tUp, new Vector2(side.Offset.X * resize.x, side.Offset.Y * resize.y), tScale);
+
+                            textureMatrices[j] = GetTextMatrix(tRight, tUp, Vector2.zero, Vector2.one);
+                            */
                         }
 
                         //CalculateTextureCoordinates(pr, polygon, w, h, new Vector2(side.Offset.X, -side.Offset.Y), new Vector2(side.Scale.X, side.Scale.Y), side.Rotation);
@@ -180,6 +362,7 @@ namespace RealtimeCSG.Quake1Importer
                         //BrushFactory.CreateControlMeshFromPlanes(out rcsgBrush.ControlMesh, out rcsgBrush.Shape, planes, null, null, materials);
                         //BrushFactory.CreateControlMeshFromPlanes(out rcsgBrush.ControlMesh, out rcsgBrush.Shape, planes);
 
+
                         for (int j = 0; j < brush.Sides.Count; j++)
                         {
                             MapBrushSide side = brush.Sides[j];
@@ -193,30 +376,58 @@ namespace RealtimeCSG.Quake1Importer
                                 h = materials[j].mainTexture.height;
                             }
 
-                            //Debug.Log($"W = {w} + h = {h}");
-
-                            //var scaleAdjust = new Vector2(32 / w)
-
                             var tScale = new Vector2(
-                                (32.0f / w) / Mathf.Max(side.Scale.X, float.Epsilon),
-                                (32.0f / h) / Mathf.Max(side.Scale.Y, float.Epsilon));
+                                SafeDivision((32.0f / w), side.Scale.X),
+                                SafeDivision((32.0f / h), side.Scale.Y));
 
-                            rcsgBrush.Shape.TexGens[j].Scale = tScale;
+                            if (valveFormat)
+                            {
+                                //var cScale = rcsgBrush.Shape.TexGens[j].Scale;
+                                //tScale.x = Mathf.Abs(tScale.x) * Mathf.Sign(cScale.x);
+                                //tScale.y = Mathf.Abs(tScale.y) * Mathf.Sign(cScale.y);
 
-                            //Debug.Log($"ScaleX {tScale.x} ScaleY {tScale.y}");
+                                rcsgBrush.Shape.TexGens[j].Scale = tScale;
 
-                            if (side.Offset.X != 0)
-                                rcsgBrush.Shape.TexGens[j].Translation.x = side.Offset.X / Mathf.Max(w, float.Epsilon);
+                                rcsgBrush.Shape.TexGens[j].Translation.x = SafeDivision(side.Offset.X, w);
+                                rcsgBrush.Shape.TexGens[j].Translation.y = SafeDivision(-side.Offset.Y, h);
+
+                                rcsgBrush.Shape.TexGens[j].RotationAngle += 180 + side.Rotation; // Textures often need to be flipped or rotated 180 to match
+                            }
                             else
-                                rcsgBrush.Shape.TexGens[j].Translation.x = 0;
+                            {
+                                
 
-                            if (side.Offset.Y != 0)
-                                rcsgBrush.Shape.TexGens[j].Translation.y = side.Offset.Y / Mathf.Max(h, float.Epsilon);
-                            else
-                                rcsgBrush.Shape.TexGens[j].Translation.y = 0;
+                                //Debug.Log($"W = {w} + h = {h}");
 
+                                //var scaleAdjust = new Vector2(32 / w)
 
-                            rcsgBrush.Shape.TexGens[j].RotationAngle -= side.Rotation;
+                                
+
+                                rcsgBrush.Shape.TexGens[j].Scale = tScale;
+
+                                //Debug.Log($"ScaleX {tScale.x} ScaleY {tScale.y}");
+
+                                if (side.Offset.X != 0)
+                                    rcsgBrush.Shape.TexGens[j].Translation.x = side.Offset.X / Mathf.Max(w, float.Epsilon);
+                                else
+                                    rcsgBrush.Shape.TexGens[j].Translation.x = 0;
+
+                                if (side.Offset.Y != 0)
+                                    rcsgBrush.Shape.TexGens[j].Translation.y = side.Offset.Y / Mathf.Max(h, float.Epsilon);
+                                else
+                                    rcsgBrush.Shape.TexGens[j].Translation.y = 0;
+
+                                rcsgBrush.Shape.TexGens[j].RotationAngle = 180 + side.Rotation;
+
+                                //if (valveFormat)
+                                //{
+                                //    rcsgBrush.Shape.TexGens[j].RotationAngle -= side.Rotation;
+                                //}
+                                //else
+                                //{
+                                //    rcsgBrush.Shape.TexGens[j].RotationAngle = 180 + side.Rotation;
+                                //}
+                            }
                         }
                     }
                     else
@@ -249,74 +460,6 @@ namespace RealtimeCSG.Quake1Importer
                 //model.EndUpdate();
             }
         }
-
-        //// shoutouts to Jasmine Mickle for your insight and UV texture coordinates code.
-        //private static void CalculateTextureCoordinates(PrimitiveBrush pr, Polygon polygon, int textureWidth, int textureHeight, Vector2 offset, Vector2 scale, float rotation)
-        //{
-        //    // feel free to improve this uv mapping code, it has some issues.
-        //    // • 45 degree angled walls may not have correct UV texture coordinates (are not correctly picking the dominant axis because there are two).
-        //    // • negative vertex coordinates may not have correct UV texture coordinates.
-
-        //    // calculate texture coordinates.
-        //    for (int i = 0; i < polygon.Vertices.Length; i++)
-        //    {
-        //        // we scaled down the level so scale up the math here.
-        //        var vertex = (pr.transform.position + polygon.Vertices[i].Position) * s_Scale;
-
-        //        Vector2 uv = new Vector2(0, 0);
-
-        //        int dominantAxis = 0; // 0 == x, 1 == y, 2 == z
-
-        //        // find the axis closest to the polygon's normal.
-        //        float[] axes =
-        //        {
-        //            Mathf.Abs(polygon.Plane.normal.x),
-        //            Mathf.Abs(polygon.Plane.normal.z),
-        //            Mathf.Abs(polygon.Plane.normal.y)
-        //        };
-
-        //        // defaults to use x-axis.
-        //        dominantAxis = 0;
-        //        // check whether the y-axis is more likely.
-        //        if (axes[1] > axes[dominantAxis])
-        //            dominantAxis = 1;
-        //        // check whether the z-axis is more likely.
-        //        if (axes[2] >= axes[dominantAxis])
-        //            dominantAxis = 2;
-
-        //        // x-axis:
-        //        if (dominantAxis == 0)
-        //        {
-        //            uv.x = vertex.z;
-        //            uv.y = vertex.y;
-        //        }
-
-        //        // y-axis:
-        //        if (dominantAxis == 1)
-        //        {
-        //            uv.x = vertex.x;
-        //            uv.y = vertex.y;
-        //        }
-
-        //        // z-axis:
-        //        if (dominantAxis == 2)
-        //        {
-        //            uv.x = vertex.x;
-        //            uv.y = vertex.z;
-        //        }
-
-        //        // rotate the texture coordinates.
-        //        uv = uv.Rotate(-rotation);
-        //        // scale the texture coordinates.
-        //        uv = uv.Divide(scale);
-        //        // move the texture coordinates.
-        //        uv += offset;
-        //        // finally divide the result by the texture size.
-        //        uv = uv.Divide(new Vector2(textureWidth, textureHeight));
-
-        //        polygon.Vertices[i].UV = uv;
-        //    }
-        //}
 
         /// <summary>
         /// Determines whether the specified name is an excluded material.

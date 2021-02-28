@@ -4,15 +4,7 @@ using UnityEngine;
 
 public class RCSGQ1MapImporter : MonoBehaviour
 {
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
+    [Tooltip("If true the Textures axis from the Valve map will be used to attempt to align the textures.\n " +
+        "This is kindof buggy atm and doesn't work well for angled surfaces.")]
+    public bool adjustTexturesForValve = true;
 }

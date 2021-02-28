@@ -14,6 +14,7 @@ namespace RealtimeCSG
         // OnInspector GUI
         public override void OnInspectorGUI() //2
         {
+            DrawDefaultInspector();
             if (GUILayout.Button("Import Map"))
             {
                 ImportMap();
@@ -25,11 +26,14 @@ namespace RealtimeCSG
             string path = EditorUtility.OpenFilePanel("Import Quake 1 Map", "", "map");
             if (path.Length != 0)
             {
+                var mapImporter = target as RCSGQ1MapImporter;
+
                 EditorUtility.DisplayProgressBar("RealtimeCSG: Importing Quake 1 Map", "Parsing Quake 1 Map File (*.map)...", 0.0f);
                 var importer = new Quake1Importer.MapImporter();
+                importer.adjustTexturesForValve = mapImporter.adjustTexturesForValve;
+
                 var map = importer.Import(path);
 
-                var mapImporter = target as RCSGQ1MapImporter;
 
                 Quake1Importer.MapWorldConverter.Import(mapImporter.transform, map);
 

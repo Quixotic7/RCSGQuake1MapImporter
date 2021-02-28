@@ -27,6 +27,8 @@ namespace RealtimeCSG.Quake1Importer
         public List<MapEntity> Entities = new List<MapEntity>();
 
         public bool valveFormat = false;
+
+        public string mapName;
     }
 }
 

@@ -13,6 +13,10 @@ namespace RealtimeCSG.Quake1Importer
     /// <remarks>Created by Henry de Jongh for SabreCSG.</remarks>
     public class MapImporter
     {
+        // If true the Textures axis from the Valve map will be used to attempt to align the textures. 
+        // this is kindof buggy atm and doesn't work well for angled surfaces.
+        public bool adjustTexturesForValve = false;
+
         /// <summary>
         /// Imports the specified Quake 1 Map Format file.
         /// </summary>
@@ -22,6 +26,8 @@ namespace RealtimeCSG.Quake1Importer
         {
             // create a new world.
             MapWorld world = new MapWorld();
+
+            world.mapName = Path.GetFileNameWithoutExtension(path);
 
             // open the file for reading. we use streams for additional performance.
             // it's faster than File.ReadAllLines() as that requires two iterations.
@@ -78,14 +84,32 @@ namespace RealtimeCSG.Quake1Importer
                                     if(version == 220)
                                     {
                                         valveFormat = true;
-                                        world.valveFormat = true;
+                                        world.valveFormat = adjustTexturesForValve;
                                     }
                                     //UnityEngine.Debug.Log($"mapversion = {version}");
                                     break;
                                 case "classname": 
                                     entity.ClassName = (string)value;
                                     //UnityEngine.Debug.Log($"Classname = {entity.ClassName}");
-                                break;
+                                    break;
+                                case "_tb_type":
+                                    entity.tbType = (string)value;
+                                    break;
+                                case "_tb_name":
+                                    entity.tbName = (string)value;
+                                    break;
+                                case "_tb_id":
+                                    entity.tbId = (int)value;
+                                    break;
+                                case "_tb_layer":
+                                    entity.tbLayer = (int)value;
+                                    break;
+                                case "_tb_layer_sort_index":
+                                    entity.tbLayerSortIndex = (int)value;
+                                    break;
+                                case "_tb_group":
+                                    entity.tbGroup = (int)value;
+                                    break;
                             }
                         }
                     }

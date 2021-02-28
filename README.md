@@ -47,5 +47,12 @@ Enjoy your map inside of Unity!
 
 ## Version History
 
-20210227 - Initial release of the addon. 
+**20210228** 
+
+	-	Improved Valve Texture orientation, still not perfect, but improved. 
+	-	Imported map now organized into Trenchbroom layers and groups. 
+	-	Entities are placed in their own GameObject with the class name of the entity. 
+	-	Models for Trigger entities will be set to use triggers and won't be rendered. 
+
+**20210227** - Initial release of the addon. 
 

@@ -14,6 +14,15 @@ namespace RealtimeCSG.Quake1Importer
         /// </summary>
         public string ClassName;
 
+        public string tbType;
+        public string tbName;
+        public int tbId = -1;
+        public int tbLayerSortIndex = -1;
+        public int tbGroup = -1;
+        public int tbLayer = -1;
+
+
+
         /// <summary>
         /// The brushes in the entity if available.
         /// </summary>

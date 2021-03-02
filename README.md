@@ -47,12 +47,16 @@ Enjoy your map inside of Unity!
 
 ## Version History
 
+**20210301**
+
+- Much better support for Valve 220 map formats. Texture orientations should be perfect. Offsets may sometimes be wrong. Based off [Henry00IS](https://github.com/Henry00IS) texture matrix function from [Chisel.Import.Source](https://github.com/Henry00IS/Chisel.Import.Source) .
+
 **20210228** 
 
-	-	Improved Valve Texture orientation, still not perfect, but improved. 
-	-	Imported map now organized into Trenchbroom layers and groups. 
-	-	Entities are placed in their own GameObject with the class name of the entity. 
-	-	Models for Trigger entities will be set to use triggers and won't be rendered. 
+- Improved Valve Texture orientation, still not perfect, but improved. 
+- Imported map now organized into Trenchbroom layers and groups. 
+- Entities are placed in their own GameObject with the class name of the entity. 
+- Models for Trigger entities will be set to use triggers and won't be rendered. 
 
 **20210227** - Initial release of the addon. 
 

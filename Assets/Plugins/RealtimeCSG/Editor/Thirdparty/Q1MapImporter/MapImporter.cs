@@ -10,7 +10,7 @@ namespace RealtimeCSG.Quake1Importer
     /// <summary>
     /// Importer for Quake 1 Map Format (*.map) format.
     /// </summary>
-    /// <remarks>Created by Henry de Jongh for SabreCSG.</remarks>
+    /// <remarks>Originally created by Henry de Jongh for SabreCSG.</remarks>
     public class MapImporter
     {
         // If true the Textures axis from the Valve map will be used to attempt to align the textures. 

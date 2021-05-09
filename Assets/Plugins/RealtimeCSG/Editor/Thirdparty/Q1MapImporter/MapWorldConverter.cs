@@ -9,7 +9,7 @@ using RealtimeCSG.Components;
 namespace RealtimeCSG.Quake1Importer
 {
     /// <summary>
-    /// Converts a Quake 1 Map to SabreCSG Brushes.
+    /// Converts a Quake 1 Map to RealtimeCSG Brushes.
     /// </summary>
     public static class MapWorldConverter
     {
@@ -63,11 +63,10 @@ namespace RealtimeCSG.Quake1Importer
         }
 
         /// <summary>
-        /// Imports the specified world into the SabreCSG model.
+        /// Imports the specified world into the RealtimeCSG.
         /// </summary>
-        /// <param name="model">The model to import into.</param>
+        /// <param name="rootTransform">Transform to be parent of RealtimeCSG brushes</param>
         /// <param name="world">The world to be imported.</param>
-        /// <param name="scale">The scale modifier.</param>
         public static void Import(Transform rootTransform, MapWorld world)
         {
             try
@@ -207,7 +206,7 @@ namespace RealtimeCSG.Quake1Importer
                         MapBrush brush = entity.Brushes[i];
 #if UNITY_EDITOR
                         if (world.Entities[e].ClassName == "worldspawn")
-                            UnityEditor.EditorUtility.DisplayProgressBar("SabreCSG: Importing Quake 1 Map", "Converting Quake 1 Brushes To SabreCSG Brushes (" + (i + 1) + " / " + entity.Brushes.Count + ")...", i / (float)entity.Brushes.Count);
+                            UnityEditor.EditorUtility.DisplayProgressBar("RealtimeCSG: Importing Quake 1 Map", "Converting Quake 1 Brushes To RealtimeCSG Brushes (" + (i + 1) + " / " + entity.Brushes.Count + ")...", i / (float)entity.Brushes.Count);
 #endif
                         // don't add triggers to the scene.
                         // Triggers will get placed in entity model now
@@ -259,7 +258,7 @@ namespace RealtimeCSG.Quake1Importer
                             if (materials[j] == null)
                             {
                                 materials[j] = CSGSettings.DefaultMaterial;
-                                // Debug.Log("SabreCSG: Tried to find material '" + materialName + "' but it couldn't be found in the project.");
+                                // Debug.Log("RealtimeCSG: Tried to find material '" + materialName + "' but it couldn't be found in the project.");
                             }
 
                             if (valveFormat)
@@ -389,7 +388,7 @@ namespace RealtimeCSG.Quake1Importer
 
         /// <summary>
         /// Determines whether the specified name is a special material, these brush will not be
-        /// imported into SabreCSG.
+        /// imported into RealtimeCSG.
         /// </summary>
         /// <param name="name">The name of the material.</param>
         /// <returns><c>true</c> if the specified name is a special material; otherwise, <c>false</c>.</returns>
